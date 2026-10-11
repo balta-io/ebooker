@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Ebooker — editor de ebooks</title>
+    <link rel="icon" href="data:,">
+    <script>
+      try {
+        if (localStorage.getItem("ebooker-theme") === "dark") {
+          document.documentElement.dataset.theme = "dark";
+        }
+      } catch (error) {
+        console.error("Não foi possível carregar o tema salvo.", error);
+      }
+    </script>
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="vendor/marked.umd.js"></script>
+    <script defer src="vendor/purify.min.js"></script>
+    <script defer src="app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Ebooker, início">
+        <span class="brand-icon" aria-hidden="true">E</span>
+        <span>ebooker<span class="brand-dot">.</span></span>
+      </a>
+      <label class="search-field">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg>
+        <input id="search" type="search" placeholder="Buscar capítulo ou sessão" aria-label="Buscar capítulo ou sessão" disabled>
+      </label>
+      <div class="topbar-actions">
+        <span class="local-badge"><span></span> Arquivos locais</span>
+        <button id="theme-toggle" class="button button-theme" type="button" aria-label="Ativar tema escuro" title="Ativar tema escuro">
+          <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.1A8.7 8.7 0 0 1 8.9 3.8 8.8 8.8 0 1 0 20.2 15.1Z"/></svg>
+          <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
+          <span>Tema</span>
+        </button>
+        <button id="open-book" class="button button-dark" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v1M3 7h16a2 2 0 0 1 2 2l-2 10H3L1 9a2 2 0 0 1 2-2Z"/></svg>
+          ABRIR EBOOK
+        </button>
+      </div>
+    </header>
+
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+    <main class="workspace">
+      <aside class="sidebar" aria-label="Navegação do ebook">
+        <div class="sidebar-heading"><span>ESTRUTURA DO LIVRO</span><span class="sidebar-mark" aria-hidden="true">≡</span></div>
+        <div class="book-info">
+          <span class="book-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M5 3h14v18H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm0 0v14h14M8 7h7M8 10h5"/></svg>
+          </span>
+          <div><h1 id="book-title">Nenhum ebook aberto</h1><p id="book-meta">Escolha uma pasta para começar</p></div>
+        </div>
+        <nav id="book-tree" class="book-tree" aria-label="Conteúdo do livro">
+          <p class="tree-placeholder">A apresentação, os capítulos e as sessões do seu ebook aparecerão aqui.</p>
+        </nav>
+        <div class="sidebar-footer"><span class="privacy-dot"></span><div>Seu conteúdo fica no seu computador.<small>Nenhum arquivo é enviado.</small></div></div>
+      </aside>
+
+      <section class="main-content" aria-label="Editor">
+        <section id="welcome" class="welcome">
+          <div class="welcome-heading">
+            <span class="eyebrow">EDITOR DE MARKDOWN</span>
+            <h2>Escolha um ebook</h2>
+            <p>Abra uma pasta para navegar pelos capítulos e editar seus arquivos Markdown.</p>
+          </div>
+          <button id="welcome-open" class="button button-accent" type="button">Escolher pasta do ebook <span aria-hidden="true">↗</span></button>
+          <div class="welcome-steps">
+            <div><span>01</span><strong>Abra seu livro</strong><p>Selecione a pasta com o index.md.</p></div>
+            <div><span>02</span><strong>Encontre o trecho</strong><p>Navegue por capítulos e sessões.</p></div>
+            <div><span>03</span><strong>Edite e salve</strong><p>Ajustes direto no arquivo original.</p></div>
+          </div>
+          <p id="compatibility" class="compatibility">Use Chrome ou Edge em localhost. Extraia o ZIP antes de abrir a pasta.</p>
+        </section>
+
+        <section id="editor-view" class="editor-view" hidden>
+          <header class="document-header">
+            <div class="document-heading">
+              <div id="breadcrumbs" class="breadcrumbs"></div>
+              <h2 id="document-title"></h2>
+              <p id="document-reading-time" class="reading-time"></p>
+              <p id="document-path" class="document-path"></p>
+            </div>
+            <div class="save-actions">
+              <span id="save-status" class="save-status" role="status">Salvo</span>
+              <button id="save" class="button button-accent" type="button" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h13l4 4v14H3V3h1Zm3 0v6h10V3M7 21v-8h10v8"/></svg>
+                Salvar <kbd>Ctrl S</kbd>
+              </button>
+            </div>
+          </header>
+          <div class="editor-toolbar">
+            <div class="format-tools" role="group" aria-label="Formatação Markdown">
+              <button type="button" data-format="heading" title="Título" aria-label="Inserir título">H<span>2</span></button>
+              <button type="button" data-format="bold" title="Negrito" aria-label="Inserir negrito"><b>B</b></button>
+              <button type="button" data-format="italic" title="Itálico" aria-label="Inserir itálico"><i>I</i></button>
+              <span class="toolbar-divider"></span>
+              <button type="button" data-format="link" title="Link" aria-label="Inserir link">↗</button>
+              <button type="button" data-format="list" title="Lista" aria-label="Inserir lista">☷</button>
+              <button type="button" data-format="quote" title="Citação" aria-label="Inserir citação">“</button>
+              <button type="button" data-format="code" title="Código" aria-label="Inserir código">&lt;/&gt;</button>
+            </div>
+            <label class="sync-label"><input id="sync-scroll" type="checkbox" checked> Sincronizar rolagem</label>
+          </div>
+          <div class="split-editor">
+            <section class="markdown-pane" aria-label="Código Markdown">
+              <div class="pane-heading"><span><span class="pane-dot"></span> MARKDOWN</span><span class="pane-detail">Arquivo original</span></div>
+              <textarea id="markdown" aria-label="Conteúdo Markdown" spellcheck="false" disabled placeholder="Selecione um arquivo do livro."></textarea>
+            </section>
+            <section class="preview-pane" aria-label="Prévia renderizada">
+              <div class="pane-heading"><span><span class="pane-dot green"></span> PRÉVIA</span><span class="pane-detail">Atualização em tempo real</span></div>
+              <div id="preview-scroll" class="preview-scroll"><article id="preview" class="markdown-body"></article></div>
+            </section>
+          </div>
+          <footer class="editor-footer"><span id="word-count">0 palavras</span><span>Markdown <span class="footer-separator">/</span> UTF-8 <span class="footer-separator">/</span> Prévia com Marked.js</span></footer>
+        </section>
+
+        <section id="chapter-view" class="chapter-view" hidden>
+          <div id="chapter-breadcrumbs" class="breadcrumbs"></div>
+          <span class="eyebrow">CAPÍTULO</span>
+          <h2 id="chapter-title"></h2>
+          <p id="chapter-reading-time" class="reading-time"></p>
+          <p>Este capítulo não tem um index.md próprio. Selecione uma sessão para visualizar e editar seu conteúdo.</p>
+          <div id="chapter-sessions" class="chapter-sessions"></div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="changes-dialog">
+      <form method="dialog">
+        <span class="eyebrow">ALTERAÇÕES NÃO SALVAS</span>
+        <h2>Antes de continuar…</h2>
+        <p>Você fez ajustes neste arquivo. O que deseja fazer com eles?</p>
+        <div class="dialog-actions">
+          <button class="button button-quiet" value="cancel">Continuar editando</button>
+          <button class="button button-quiet danger" value="discard">Descartar</button>
+          <button class="button button-accent" value="save">Salvar e continuar</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

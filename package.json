@@ -1,0 +1,18 @@
+{
+  "name": "ebooker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Editor local de ebooks em Markdown com File System Access API.",
+  "scripts": {
+    "start": "node tools/serve.cjs",
+    "test": "node --test tests/*.test.cjs",
+    "vendor": "node tools/vendor.cjs"
+  },
+  "dependencies": {
+    "dompurify": "3.4.16",
+    "marked": "17.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0"
+  }
+}

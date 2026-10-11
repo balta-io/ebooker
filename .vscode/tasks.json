@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Ebooker: iniciar editor",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"tools\\serve.cjs"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}
