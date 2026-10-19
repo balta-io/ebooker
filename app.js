@@ -8,12 +8,14 @@
     "breadcrumbs", "document-title", "document-path", "document-reading-time", "save", "save-status",
     "markdown", "preview", "preview-scroll", "word-count", "sync-scroll",
     "chapter-breadcrumbs", "chapter-title", "chapter-reading-time", "chapter-sessions", "changes-dialog",
+    "image-dialog", "image-dialog-close", "image-dialog-image",
   ].map((id) => [id, $(id)]));
   const state = {
     book: null,
     current: null,
     selected: null,
     original: "",
+    frontmatter: "",
     diskText: "",
     bom: false,
     busy: false,
@@ -184,6 +186,43 @@
     return fallback;
   }
 
+  function splitFrontmatter(text) {
+    const normalized = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+    const match = normalized.match(/^---[ \t]*\n[\s\S]*?\n---[ \t]*(?:\n|$)/);
+    return {
+      frontmatter: match?.[0] || "",
+      content: match ? normalized.slice(match[0].length) : normalized,
+    };
+  }
+
+  function frontmatterTitle(frontmatter) {
+    const normalized = frontmatter.replace(/\r\n?/g, "\n");
+    const match = normalized.match(/^---[ \t]*\n([\s\S]*?)\n---[ \t]*(?:\n|$)/);
+    const titleLine = match?.[1].split("\n").find((line) => /^title\s*:/i.test(line));
+    if (!titleLine) return null;
+    let title = titleLine.replace(/^title\s*:\s*/i, "").trim();
+    if (!title || /^(?:null|~)$/i.test(title)) return null;
+    if (title.startsWith('"') && title.endsWith('"')) {
+      try {
+        title = JSON.parse(title);
+      } catch {
+        title = title.slice(1, -1);
+      }
+    } else if (title.startsWith("'") && title.endsWith("'")) {
+      title = title.slice(1, -1).replace(/''/g, "'");
+    } else {
+      title = title.replace(/\s+#.*$/, "").trim();
+    }
+    return title || null;
+  }
+
+  function frontmatterMenuLabel(frontmatter) {
+    const match = frontmatter.match(/^\s*lecture_type\s*:\s*["']?(hands_on|quiz)["']?\s*(?:#.*)?$/im);
+    if (match?.[1].toLowerCase() === "hands_on") return "Laboratório";
+    if (match?.[1].toLowerCase() === "quiz") return "Quiz";
+    return null;
+  }
+
   async function indexFile(directory) {
     try {
       return await directory.getFileHandle("index.md");
@@ -204,7 +243,12 @@
   async function describeFile(handle, parts, fallback, kind, chapter = null) {
     const file = await handle.getFile();
     const text = await file.text();
-    return { handle, parts, path: parts.join("/"), title: heading(text, fallback), wordCount: countWords(text), kind, chapter };
+    const { frontmatter, content } = splitFrontmatter(text);
+    const title = kind === "about" || kind === "chapter"
+      ? frontmatterTitle(frontmatter) || heading(content, fallback)
+      : heading(content, fallback);
+    const menuTitle = kind === "session" ? frontmatterMenuLabel(frontmatter) || title : title;
+    return { handle, parts, path: parts.join("/"), title, menuTitle, wordCount: countWords(content), kind, chapter };
   }
 
   async function scanBook(root) {
@@ -272,7 +316,7 @@
     }
     for (const chapter of state.book.chapters) {
       const chapterMatch = matches(`${chapter.name} ${chapter.title}`);
-      const sessions = chapter.sessions.filter((session) => chapterMatch || matches(`${session.name} ${session.title}`));
+      const sessions = chapter.sessions.filter((session) => chapterMatch || matches(`${session.name} ${session.title} ${session.menuTitle}`));
       if (!chapterMatch && !sessions.length) continue;
       const group = document.createElement("div");
       group.className = "tree-chapter";
@@ -297,7 +341,7 @@
         const children = document.createElement("div");
         children.className = "chapter-children";
         sessions.forEach((session) => {
-          children.append(treeButton(session.title, session.name, state.selected === session, () => navigate(session), documentWords(session)));
+          children.append(treeButton(session.menuTitle, session.name, state.selected === session, () => navigate(session), documentWords(session)));
         });
         group.append(children);
       }
@@ -339,8 +383,22 @@
   }
 
   function releaseImages() {
+    closeImageDialog();
     state.imageURLs.forEach((url) => URL.revokeObjectURL(url));
     state.imageURLs = [];
+  }
+
+  function closeImageDialog() {
+    if (ui["image-dialog"].open) ui["image-dialog"].close();
+    ui["image-dialog-image"].removeAttribute("src");
+    ui["image-dialog-image"].alt = "";
+  }
+
+  function openImageDialog(image) {
+    if (!image.src || !image.naturalWidth) return;
+    ui["image-dialog-image"].src = image.currentSrc || image.src;
+    ui["image-dialog-image"].alt = image.alt;
+    ui["image-dialog"].showModal();
   }
 
   function displayDocument(doc, loaded) {
@@ -348,11 +406,13 @@
     state.current = doc;
     state.selected = doc;
     state.diskText = loaded.text;
-    state.original = loaded.text.replace(/\r\n?/g, "\n");
+    const parts = splitFrontmatter(loaded.text);
+    state.frontmatter = parts.frontmatter;
+    state.original = parts.content;
     state.bom = loaded.bom;
-    ui.markdown.value = state.original;
-    doc.title = heading(loaded.text, doc.title);
-    doc.wordCount = countWords(loaded.text);
+    ui.markdown.value = parts.content;
+    doc.title = heading(parts.content, doc.title);
+    doc.wordCount = countWords(parts.content);
     if (doc.chapter) doc.chapter.expanded = true;
     ui.welcome.hidden = true;
     ui["chapter-view"].hidden = true;
@@ -483,18 +543,19 @@
       if (disk.text !== state.diskText || disk.bom !== state.bom) {
         throw new Error("O arquivo foi alterado fora do editor. Nada foi sobrescrito. Copie seus ajustes antes de reabrir o ebook para carregar a versão atual.");
       }
-      const content = ui.markdown.value;
+      const content = state.frontmatter + ui.markdown.value;
       const diskContent = state.diskText.includes("\r\n") ? content.replace(/\n/g, "\r\n") : content;
+      const diskText = (state.bom ? "\uFEFF" : "") + diskContent;
       writable = await doc.handle.createWritable({ keepExistingData: false });
-      await writable.write((state.bom ? "\uFEFF" : "") + diskContent);
+      await writable.write(diskText);
       await writable.close();
       closed = true;
-      state.original = content;
-      state.diskText = diskContent;
-      doc.title = heading(content, doc.title);
-      doc.wordCount = countWords(content);
+      state.original = ui.markdown.value;
+      state.diskText = diskText;
+      doc.title = heading(ui.markdown.value, doc.title);
+      doc.wordCount = countWords(ui.markdown.value);
       if (doc.kind === "about") {
-        state.book.title = doc.title;
+        state.book.title = frontmatterTitle(state.frontmatter) || doc.title;
         updateBookInfo();
       } else if (doc.kind === "chapter") {
         doc.chapter.title = doc.title;
@@ -556,6 +617,21 @@
     return handle.getFile();
   }
 
+  function imagePath(src, sourceParts) {
+    if (/^(?:https?:)?\/\//i.test(src)) {
+      const url = new URL(src, window.location.href);
+      const filename = decodeURIComponent(url.pathname.split("/").at(-1) || "");
+      if (!filename || filename === "." || filename === ".." || /[\/\\\0]/.test(filename)) {
+        throw new Error("A URL da imagem não contém um nome de arquivo válido.");
+      }
+      return ["_images", filename];
+    }
+    if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(src)) {
+      throw new Error("Imagens externas não são carregadas automaticamente. Use uma imagem dentro da pasta do ebook.");
+    }
+    return relativePath(src, sourceParts);
+  }
+
   function addHeadingIDs() {
     const used = new Set();
     ui.preview.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((element) => {
@@ -587,7 +663,14 @@
 
   function formatReadingTime(words) {
     const seconds = calculateReadingTimeSeconds(words);
-    return `${seconds.toLocaleString("pt-BR")} ${seconds === 1 ? "segundo" : "segundos"} de leitura`;
+    if (seconds === 0) return "0 minutos de leitura";
+    if (seconds < 60) return "menos de 1 minuto de leitura";
+    if (seconds < 3600) {
+      const minutes = Math.ceil(seconds / 60);
+      return `${minutes.toLocaleString("pt-BR")} ${minutes === 1 ? "minuto" : "minutos"} de leitura`;
+    }
+    const hours = Number((seconds / 3600).toPrecision(3));
+    return `${hours.toLocaleString("pt-BR", { maximumSignificantDigits: 3 })} ${hours === 1 ? "hora" : "horas"} de leitura`;
   }
 
   function renderPreview() {
@@ -636,14 +719,15 @@
 
   async function loadImage(image, src, source, book, version) {
     try {
-      if (!src || /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(src)) {
-        throw new Error("Imagens externas não são carregadas automaticamente. Use uma imagem dentro da pasta do ebook.");
-      }
-      const file = await resourceFile(relativePath(src, source.parts), book);
+      if (!src) throw new Error("Caminho de imagem vazio.");
+      const file = await resourceFile(imagePath(src, source.parts), book);
       if (version !== state.renderVersion) return;
       const url = URL.createObjectURL(file);
       state.imageURLs.push(url);
       image.src = url;
+      image.tabIndex = 0;
+      image.setAttribute("role", "button");
+      image.setAttribute("aria-label", `Abrir imagem em alta resolução${image.alt ? `: ${image.alt}` : ""}`);
       image.addEventListener("error", () => {
         if (version === state.renderVersion) notify(`Não foi possível exibir a imagem: ${src}.`, true);
       }, { once: true });
@@ -757,7 +841,29 @@
   ui.save.addEventListener("click", save);
   ui.search.addEventListener("input", renderTree);
   ui.markdown.addEventListener("input", edited);
-  ui.preview.addEventListener("click", previewLink);
+  ui.preview.addEventListener("click", (event) => {
+    const image = event.target.closest("img");
+    if (image && ui.preview.contains(image)) {
+      openImageDialog(image);
+      return;
+    }
+    previewLink(event);
+  });
+  ui.preview.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const image = event.target.closest("img");
+    if (!image || !ui.preview.contains(image)) return;
+    event.preventDefault();
+    openImageDialog(image);
+  });
+  ui["image-dialog-close"].addEventListener("click", () => ui["image-dialog"].close());
+  ui["image-dialog"].addEventListener("click", (event) => {
+    if (event.target === ui["image-dialog"]) ui["image-dialog"].close();
+  });
+  ui["image-dialog"].addEventListener("close", () => {
+    ui["image-dialog-image"].removeAttribute("src");
+    ui["image-dialog-image"].alt = "";
+  });
   ui.markdown.addEventListener("scroll", () => syncScroll(ui.markdown, ui["preview-scroll"]));
   ui["preview-scroll"].addEventListener("scroll", () => syncScroll(ui["preview-scroll"], ui.markdown));
   ui.notice.addEventListener("click", () => { ui.notice.hidden = true; });

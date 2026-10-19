@@ -150,6 +150,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 12px; height: 12px;
 .markdown-body th, .markdown-body td { border: 1px solid var(--line); padding: 8px 12px; }
 .markdown-body th { background: #f4f2fa; text-align: left; }
 .markdown-body img { max-width: 100%; height: auto; border-radius: 4px; }
+.markdown-body img[role="button"] { cursor: pointer; }
 .markdown-body hr { border: 0; border-top: 1px solid var(--line); margin: 26px 0; }
 .editor-footer { display: flex; justify-content: space-between; padding: 13px 26px; border-top: 1px solid var(--line); font-size: 9px; color: #929a89; background: #f8f9f3; gap: 12px; }
 .footer-separator { color: #c5cbbd; margin: 0 9px; }
@@ -171,6 +172,10 @@ dialog::backdrop { background: #252b2955; backdrop-filter: blur(3px); }
 dialog h2 { font: 28px Georgia, serif; }
 dialog p { font-size: 13px; line-height: 1.8; color: var(--muted); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 25px; flex-wrap: wrap; }
+.image-dialog { position: relative; width: fit-content; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); overflow: visible; padding: 20px; background: white; }
+.image-dialog img { display: block; max-width: calc(100vw - 72px); max-height: calc(100dvh - 72px); width: auto; height: auto; object-fit: contain; border-radius: 4px; }
+.image-dialog-close { position: absolute; z-index: 1; top: 6px; right: 6px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--ink); font-size: 24px; line-height: 1; cursor: pointer; }
+[data-theme="dark"] .image-dialog { background: #1e1e25; }
 [data-theme="dark"] .topbar .search-field,
 [data-theme="dark"] .search-field { background: #25252e; color: #aaaab5; }
 [data-theme="dark"] .sidebar-heading,
@@ -206,6 +211,8 @@ dialog p { font-size: 13px; line-height: 1.8; color: var(--muted); }
 [data-theme="dark"] .pane-dot.green { background: #b5a3ff; }
 [data-theme="dark"] #markdown { color: #c5c5cf; }
 [data-theme="dark"] .markdown-body { color: #c4c4ce; }
+[data-theme="dark"] .preview-pane .markdown-body img,
+[data-theme="dark"] .image-dialog img { filter: invert(1) hue-rotate(180deg); }
 [data-theme="dark"] .markdown-body h1,
 [data-theme="dark"] .markdown-body h2,
 [data-theme="dark"] .markdown-body h3,

@@ -46,7 +46,8 @@ Meu ebook/
 ## Edição e salvamento
 
 - Edite à esquerda; a prévia à direita acompanha as alterações.
-- O rodapé mostra palavras, caracteres e a duração estimada de leitura em segundos inteiros, atualizada durante a edição. O cálculo usa 150 palavras por minuto: `Math.ceil((palavras / 150) * 60)`, arredondando para cima quando houver uma fração.
+- O frontmatter YAML no início do arquivo fica oculto no editor e na prévia, é preservado ao salvar e seu campo `title` define o título do ebook na lateral.
+- O rodapé mostra palavras, caracteres e a duração estimada de leitura, atualizada durante a edição. O cálculo usa 150 palavras por minuto e arredonda para cima: menos de um minuto é exibido como “menos de 1 minuto”, durações de um minuto a menos de uma hora são exibidas em minutos inteiros, e uma hora ou mais é exibida em horas com até três algarismos significativos.
 - A lateral mostra a duração total do ebook após a quantidade de capítulos e sessões, e a duração abaixo do título de cada capítulo e sessão. Os cabeçalhos e cartões de sessões também mostram a duração. Os totais incluem as apresentações e as sessões, somam as palavras antes de arredondar e acompanham a edição; descartar alterações restaura a duração do conteúdo salvo.
 - Use a barra de formatação ou escreva Markdown diretamente. Tabelas, listas de tarefas e blocos de código são suportados.
 - **Salvar** ou **Ctrl+S** (Cmd+S no macOS) grava somente o arquivo selecionado. **Não há salvamento automático.**
@@ -59,9 +60,9 @@ Meu ebook/
 
 ## Prévia e privacidade
 
-Nenhum ebook é enviado para um servidor. Marked.js e DOMPurify são carregados localmente. HTML ativo é removido da prévia; imagens externas não são carregadas automaticamente.
+Nenhum ebook é enviado para um servidor. Marked.js e DOMPurify são carregados localmente. HTML ativo é removido da prévia. Imagens com URLs HTTP/HTTPS são carregadas localmente da pasta `_images` na raiz do ebook, usando o nome do arquivo da URL; a URL original permanece inalterada no editor. Imagens sem URL absoluta seguem a resolução local descrita abaixo.
 
-Imagens relativas dentro da pasta do ebook são resolvidas pela API de arquivos. Caminhos relativos são calculados a partir do Markdown selecionado; caminhos começando com `/` partem da raiz do ebook. Links para outros `index.md` disponíveis e âncoras de títulos funcionam na prévia. Links externos HTTP/HTTPS e `mailto:` só abrem quando clicados.
+Imagens relativas dentro da pasta do ebook são resolvidas pela API de arquivos. Caminhos relativos são calculados a partir do Markdown selecionado; caminhos começando com `/` partem da raiz do ebook. Clique em uma imagem na prévia para abri-la em alta resolução; use **Fechar**, **Esc** ou clique fora da imagem para voltar. Alterações no Markdown atualizam a prévia e as imagens. Links para outros `index.md` disponíveis e âncoras de títulos funcionam na prévia. Links externos HTTP/HTTPS e `mailto:` só abrem quando clicados.
 
 A rolagem sincronizada é proporcional, pode ser desativada e não representa um alinhamento exato por linha. No desktop os painéis ficam lado a lado; em telas pequenas ficam empilhados.
 

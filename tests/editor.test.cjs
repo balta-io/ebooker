@@ -109,7 +109,7 @@ test("tema claro e escuro alterna e permanece após recarregar", async () => {
 test("abre apresentação, ordena capítulos numericamente e ignora pastas sem index.md", async () => {
   await withEditor(fixture, async (page) => {
     await open(page);
-    await expect(page.locator("#book-meta")).toHaveText(/3 capítulos · 4 sessões · \d+ segundos de leitura/);
+    await expect(page.locator("#book-meta")).toHaveText(/3 capítulos · 4 sessões · (?:[\d,.]+ minutos|menos de 1 minuto) de leitura/);
     await expect(page.locator("#document-title")).toHaveText("Sobre o livro");
     await expect(page.locator("#preview strong")).toHaveText("este livro");
     await expect(page.locator("#save")).toBeDisabled();
@@ -119,21 +119,56 @@ test("abre apresentação, ordena capítulos numericamente e ignora pastas sem i
   });
 });
 
-test("rodapé mostra duração de leitura em segundos e acompanha a edição e a troca de sessão", async () => {
+test("usa o título do frontmatter do index.md do capítulo na lateral", async () => {
+  await withEditor({
+    ...fixture,
+    "01/index.md": "---\ntitle: Nome oficial do capítulo\n---\nTexto de apresentação.",
+  }, async (page) => {
+    await open(page);
+    await expect(page.locator(".chapter-row .tree-label").first()).toHaveText("Nome oficial do capítulo");
+    await page.locator(".chapter-row .tree-button").first().click();
+    await expect(page.locator("#document-title")).toHaveText("Nome oficial do capítulo");
+  });
+});
+
+test("mostra Laboratório e Quiz para aulas hands_on e quiz no menu lateral", async () => {
+  await withEditor({
+    "index.md": "# Livro de teste",
+    "01/index.md": "# Capítulo 1",
+    "01/01/index.md": '---\nlecture_type: hands_on\ntitle: "Projeto completo"\n---\n# Conteúdo do laboratório',
+    "01/02/index.md": "---\nlecture_type: quiz\ntitle: Avaliação final\n---\n# Conteúdo do quiz",
+    "01/03/index.md": "# Aula regular",
+  }, async (page) => {
+    await open(page);
+    await page.locator(".chapter-toggle").first().click();
+    assert.deepEqual(await page.locator(".chapter-children .tree-label").allTextContents(), [
+      "Laboratório", "Quiz", "Aula regular",
+    ]);
+    await page.locator(".chapter-children .tree-button").first().click();
+    await expect(page.locator("#document-title")).toHaveText("Conteúdo do laboratório");
+    await expect(page.locator(".tree-button.active .tree-label")).toHaveText("Laboratório");
+    await page.locator("#search").fill("quiz");
+    await expect(page.locator(".chapter-children .tree-label")).toHaveText(["Quiz"]);
+  });
+});
+
+test("rodapé mostra duração de leitura em formato adaptável e acompanha edição e troca de sessão", async () => {
   await withEditor(fixture, async (page) => {
     await open(page);
     await page.locator(".chapter-row .tree-button").first().click();
     await page.locator(".session-card").nth(1).click();
-    await expect(page.locator("#word-count")).toHaveText("9 palavras · 58 caracteres · 4 segundos de leitura");
+    await expect(page.locator("#word-count")).toHaveText("9 palavras · 58 caracteres · menos de 1 minuto de leitura");
 
     const editor = page.locator("#markdown");
     for (const [content, expected] of [
-      ["", "0 palavras · 0 caracteres · 0 segundos de leitura"],
-      [" \n\t ", "0 palavras · 4 caracteres · 0 segundos de leitura"],
-      ["Olá", "1 palavra · 3 caracteres · 1 segundo de leitura"],
-      [Array(150).fill("a").join(" "), "150 palavras · 299 caracteres · 60 segundos de leitura"],
-      [Array(151).fill("a").join(" "), "151 palavras · 301 caracteres · 61 segundos de leitura"],
-      [Array(1648).fill("a").join(" "), "1.648 palavras · 3.295 caracteres · 660 segundos de leitura"],
+      ["", "0 palavras · 0 caracteres · 0 minutos de leitura"],
+      [" \n\t ", "0 palavras · 4 caracteres · 0 minutos de leitura"],
+      ["Olá", "1 palavra · 3 caracteres · menos de 1 minuto de leitura"],
+      [Array(150).fill("a").join(" "), "150 palavras · 299 caracteres · 1 minuto de leitura"],
+      [Array(151).fill("a").join(" "), "151 palavras · 301 caracteres · 2 minutos de leitura"],
+      [Array(1648).fill("a").join(" "), "1.648 palavras · 3.295 caracteres · 11 minutos de leitura"],
+      [Array(9000).fill("a").join(" "), "9.000 palavras · 17.999 caracteres · 1 hora de leitura"],
+      [Array(9250).fill("a").join(" "), "9.250 palavras · 18.499 caracteres · 1,03 horas de leitura"],
     ]) {
       await editor.fill(content);
       await expect(page.locator("#word-count")).toHaveText(expected);
@@ -142,7 +177,7 @@ test("rodapé mostra duração de leitura em segundos e acompanha a edição e a
     await editor.fill(fixture["01/02/index.md"]);
     await page.locator(".chapter-row .tree-button").first().click();
     await page.locator(".session-card").first().click();
-    await expect(page.locator("#word-count")).toHaveText("6 palavras · 42 caracteres · 3 segundos de leitura");
+    await expect(page.locator("#word-count")).toHaveText("6 palavras · 42 caracteres · menos de 1 minuto de leitura");
   });
 });
 
@@ -156,46 +191,46 @@ test("duração de leitura total inclui apresentações e acompanha edição, de
     await open(page);
     const meta = page.locator("#book-meta");
     const chapterTimes = page.locator(".chapter-row .tree-reading-time");
-    await expect(meta).toHaveText("2 capítulos · 2 sessões · 2 segundos de leitura");
-    await expect(chapterTimes).toHaveText(["1 segundo de leitura", "1 segundo de leitura"]);
-    await expect(page.locator("#document-reading-time")).toHaveText("1 segundo de leitura");
+    await expect(meta).toHaveText("2 capítulos · 2 sessões · menos de 1 minuto de leitura");
+    await expect(chapterTimes).toHaveText(["menos de 1 minuto de leitura", "menos de 1 minuto de leitura"]);
+    await expect(page.locator("#document-reading-time")).toHaveText("menos de 1 minuto de leitura");
 
     await page.locator(".chapter-row .tree-button").nth(1).click();
-    await expect(page.locator("#chapter-reading-time")).toHaveText("1 segundo de leitura");
-    await expect(page.locator(".session-card .session-reading-time")).toHaveText("1 segundo de leitura");
+    await expect(page.locator("#chapter-reading-time")).toHaveText("menos de 1 minuto de leitura");
+    await expect(page.locator(".session-card .session-reading-time")).toHaveText("menos de 1 minuto de leitura");
 
     await page.locator(".chapter-row .tree-button").first().click();
-    await expect(page.locator("#document-reading-time")).toHaveText("1 segundo de leitura");
+    await expect(page.locator("#document-reading-time")).toHaveText("menos de 1 minuto de leitura");
     await page.locator(".chapter-children .tree-button").first().click();
     const content = Array(150).fill("a").join(" ");
     await page.locator("#markdown").fill(content);
-    await expect(meta).toHaveText("2 capítulos · 2 sessões · 62 segundos de leitura");
-    await expect(chapterTimes.first()).toHaveText("61 segundos de leitura");
-    await expect(page.locator(".chapter-children .tree-reading-time").first()).toHaveText("60 segundos de leitura");
-    await expect(page.locator("#document-reading-time")).toHaveText("60 segundos de leitura");
+    await expect(meta).toHaveText("2 capítulos · 2 sessões · 2 minutos de leitura");
+    await expect(chapterTimes.first()).toHaveText("2 minutos de leitura");
+    await expect(page.locator(".chapter-children .tree-reading-time").first()).toHaveText("1 minuto de leitura");
+    await expect(page.locator("#document-reading-time")).toHaveText("1 minuto de leitura");
 
     await page.locator(".chapter-row .tree-button").nth(1).click();
     await page.getByRole("button", { name: "Descartar", exact: true }).click();
-    await expect(meta).toHaveText("2 capítulos · 2 sessões · 2 segundos de leitura");
-    await expect(chapterTimes.first()).toHaveText("1 segundo de leitura");
+    await expect(meta).toHaveText("2 capítulos · 2 sessões · menos de 1 minuto de leitura");
+    await expect(chapterTimes.first()).toHaveText("menos de 1 minuto de leitura");
     await page.locator(".chapter-children .tree-button").first().click();
     await page.locator("#markdown").fill(content);
     await page.locator("#save").click();
     await expect(page.locator("#save-status")).toHaveText("Salvo");
     await page.reload();
-    await expect(meta).toHaveText("2 capítulos · 2 sessões · 62 segundos de leitura");
-    await expect(page.locator("#document-reading-time")).toHaveText("60 segundos de leitura");
+    await expect(meta).toHaveText("2 capítulos · 2 sessões · 2 minutos de leitura");
+    await expect(page.locator("#document-reading-time")).toHaveText("1 minuto de leitura");
 
     await page.locator(".chapter-row .tree-button").first().click();
     await page.locator("#markdown").fill(content);
-    await expect(meta).toHaveText("2 capítulos · 2 sessões · 121 segundos de leitura");
-    await expect(chapterTimes.first()).toHaveText("120 segundos de leitura");
-    await expect(page.locator("#document-reading-time")).toHaveText("120 segundos de leitura");
-    await expect(page.locator("#word-count")).toContainText("60 segundos de leitura");
+    await expect(meta).toHaveText("2 capítulos · 2 sessões · 2 minutos de leitura");
+    await expect(chapterTimes.first()).toHaveText("2 minutos de leitura");
+    await expect(page.locator("#document-reading-time")).toHaveText("2 minutos de leitura");
+    await expect(page.locator("#word-count")).toContainText("menos de 1 minuto de leitura");
     await page.locator("#save").click();
     await expect(page.locator("#save-status")).toHaveText("Salvo");
     await page.reload();
-    await expect(meta).toHaveText("2 capítulos · 2 sessões · 121 segundos de leitura");
+    await expect(meta).toHaveText("2 capítulos · 2 sessões · 3 minutos de leitura");
   });
 });
 
@@ -320,6 +355,35 @@ test("preserva UTF-8 BOM e CRLF sem marcar um arquivo recém-aberto como alterad
   });
 });
 
+test("usa o título do frontmatter na lateral e o preserva ao salvar", async () => {
+  const frontmatter = "---\r\ntitle: \"Título oficial do livro\"\r\nprivate: segredo\r\n---\r\n";
+  await withEditor({
+    ...fixture,
+    "index.md": `\uFEFF${frontmatter}# Livro visível\r\n\r\nTexto original.\r\n`,
+  }, async (page) => {
+    await open(page);
+    await expect(page.locator("#markdown")).toHaveValue("# Livro visível\n\nTexto original.\n");
+    await expect(page.locator("#preview")).not.toContainText("segredo");
+    await expect(page.locator("#preview")).not.toContainText("title:");
+    await expect(page.locator("#preview h1")).toHaveText("Livro visível");
+    await expect(page.locator("#book-title")).toHaveText("Título oficial do livro");
+
+    await page.locator("#markdown").fill("# Título atualizado\n\nTexto alterado.");
+    await page.locator("#save").click();
+    await expect(page.locator("#save-status")).toHaveText("Salvo");
+    await expect(page.locator("#book-title")).toHaveText("Título oficial do livro");
+    const bytes = await page.evaluate(async () => {
+      const handle = await window.testRoot.getFileHandle("index.md");
+      return [...new Uint8Array(await (await handle.getFile()).arrayBuffer())];
+    });
+    assert.deepEqual(bytes.slice(0, 3), [239, 187, 191]);
+    assert.equal(
+      new TextDecoder("utf-8", { ignoreBOM: true }).decode(Uint8Array.from(bytes)),
+      `\uFEFF${frontmatter}# Título atualizado\r\n\r\nTexto alterado.`,
+    );
+  });
+});
+
 test("bloqueia sobrescrita de arquivo modificado fora do editor", async () => {
   await withEditor(fixture, async (page) => {
     await open(page);
@@ -378,8 +442,11 @@ test("busca sessões por título e links internos abrem o index.md correto", asy
   });
 });
 
-test("renderiza GFM, remove HTML ativo e não carrega imagens externas", async () => {
-  await withEditor(fixture, async (page) => {
+test("renderiza GFM, remove HTML ativo e resolve imagens absolutas localmente", async () => {
+  await withEditor({
+    ...fixture,
+    "_images/test.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="green"/></svg>',
+  }, async (page) => {
     await open(page);
     const requests = [];
     page.on("request", (request) => {
@@ -395,7 +462,7 @@ test("renderiza GFM, remove HTML ativo e não carrega imagens externas", async (
       "```js", "const x = 1;", "```",
       "",
       '<script>window.injected = true</script>',
-      '<img src="https://example.com/test.png" onerror="window.injected = true">',
+      '<img src="https://explanna.blob.core.windows.net/public/schools/balta/contents/ibooks/test/images/test.svg" onerror="window.injected = true">',
       '<iframe src="https://example.com"></iframe>',
       '<a href="javascript:alert(1)">Link inseguro</a>',
     ].join("\n"));
@@ -403,10 +470,41 @@ test("renderiza GFM, remove HTML ativo e não carrega imagens externas", async (
     await expect(page.locator("#preview pre code")).toContainText("const x = 1");
     await expect(page.locator("#preview input")).toBeDisabled();
     assert.equal(await page.locator("#preview script, #preview iframe, #preview [onerror]").count(), 0);
-    assert.equal(await page.locator("#preview img").getAttribute("src"), null);
+    await expect(page.locator("#preview img")).toHaveAttribute("src", /^blob:/);
+    await expect.poll(() => page.locator("#preview img").evaluate((image) => image.naturalWidth)).toBe(10);
+    const image = page.locator("#preview img");
+    assert.equal(await image.evaluate((element) => getComputedStyle(element).filter), "none");
+    await page.locator("#theme-toggle").click();
+    assert.equal(await image.evaluate((element) => getComputedStyle(element).filter), "invert(1) hue-rotate(180deg)");
+    await page.locator("#theme-toggle").click();
+    assert.equal(await image.evaluate((element) => getComputedStyle(element).filter), "none");
+    assert.match(await page.locator("#markdown").inputValue(), /https:\/\/explanna\.blob\.core\.windows\.net\/public\/schools\/balta\/contents\/ibooks\/test\/images\/test\.svg/);
     assert.equal(await page.evaluate(() => window.injected), undefined);
     assert.deepEqual(requests, []);
-    await expect(page.locator("#notice")).toContainText("Imagens externas");
+  });
+});
+
+test("atualiza imagem absoluta para _images após editar Markdown sem alterar o original", async () => {
+  const original = "![Mapa](https://explanna.blob.core.windows.net/public/schools/balta/contents/ibooks/linguagem-de-programacao-ii/images/01_01_mapa-do-curso.svg)";
+  const updated = "![Mapa](https://explanna.blob.core.windows.net/public/schools/balta/contents/ibooks/linguagem-de-programacao-ii/images/02_01_mapa-do-curso.svg)";
+  await withEditor({
+    ...fixture,
+    "01/02/index.md": original,
+    "_images/01_01_mapa-do-curso.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>',
+    "_images/02_01_mapa-do-curso.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"/>',
+  }, async (page) => {
+    await open(page);
+    await page.locator(".chapter-row .tree-button").first().click();
+    await page.locator(".chapter-children .tree-button").nth(1).click();
+
+    await expect(page.locator("#markdown")).toHaveValue(original);
+    await expect.poll(() => page.locator("#preview img").evaluate((image) => image.naturalWidth)).toBe(10);
+    await expect(page.locator("#markdown")).toHaveValue(original);
+
+    await page.locator("#markdown").fill(updated);
+    await expect(page.locator("#markdown")).toHaveValue(updated);
+    await expect.poll(() => page.locator("#preview img").evaluate((image) => image.naturalWidth)).toBe(20);
+    await expect(page.locator("#markdown")).toHaveValue(updated);
   });
 });
 
@@ -419,6 +517,48 @@ test("carrega imagens locais e impede caminhos fora da pasta do ebook", async ()
     await page.locator("#markdown").fill("# Imagem\n\n![Fora](../fora.png)");
     await expect(page.locator("#notice")).toContainText("fora da pasta do ebook");
     await expect(page.locator("#preview img")).not.toHaveAttribute("src");
+  });
+});
+
+test("abre a imagem em alta resolução na prévia e permite fechar com teclado e botão", async () => {
+  await withEditor({
+    ...fixture,
+    "_images/high-resolution.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><rect width="1200" height="800" fill="green"/></svg>',
+  }, async (page) => {
+    await open(page);
+    await page.locator("#markdown").fill("# Imagem\n\n![Gráfico](_images/high-resolution.svg)");
+    const previewImage = page.locator("#preview img");
+    await expect(previewImage).toHaveAttribute("src", /^blob:/);
+    await expect.poll(() => previewImage.evaluate((image) => image.naturalWidth)).toBe(1200);
+    await expect(previewImage).toHaveCSS("cursor", "pointer");
+
+    await previewImage.click();
+    const dialog = page.locator("#image-dialog");
+    const dialogImage = page.locator("#image-dialog-image");
+    await expect(dialog).toBeVisible();
+    await expect(dialogImage).toHaveAttribute("src", await previewImage.getAttribute("src"));
+    assert.equal(await dialogImage.evaluate((image) => image.naturalWidth), 1200);
+    assert.ok((await dialogImage.boundingBox()).width > (await previewImage.boundingBox()).width);
+    await expect(dialogImage).toHaveCSS("filter", "none");
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+
+    await page.locator("#theme-toggle").click();
+    await previewImage.focus();
+    await page.keyboard.press("Enter");
+    await expect(dialog).toBeVisible();
+    await expect(dialogImage).toHaveCSS("filter", "invert(1) hue-rotate(180deg)");
+    await page.locator("#image-dialog-close").click();
+    await expect(dialog).not.toBeVisible();
+    await expect(dialogImage).not.toHaveAttribute("src");
+
+    await page.locator("#theme-toggle").click();
+    await previewImage.click();
+    await expect(dialog).toBeVisible();
+    await expect(dialogImage).toHaveCSS("filter", "none");
+    await dialog.click({ position: { x: 2, y: 2 } });
+    await expect(dialog).not.toBeVisible();
   });
 });
 
