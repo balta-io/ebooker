@@ -240,13 +240,15 @@
     return result.sort((a, b) => collator.compare(a.name, b.name));
   }
 
+  function documentTitle(frontmatter, content, fallback) {
+    return frontmatterTitle(frontmatter) || heading(content, fallback);
+  }
+
   async function describeFile(handle, parts, fallback, kind, chapter = null) {
     const file = await handle.getFile();
     const text = await file.text();
     const { frontmatter, content } = splitFrontmatter(text);
-    const title = kind === "about" || kind === "chapter"
-      ? frontmatterTitle(frontmatter) || heading(content, fallback)
-      : heading(content, fallback);
+    const title = documentTitle(frontmatter, content, fallback);
     const menuTitle = kind === "session" ? frontmatterMenuLabel(frontmatter) || title : title;
     return { handle, parts, path: parts.join("/"), title, menuTitle, wordCount: countWords(content), kind, chapter };
   }
@@ -411,7 +413,7 @@
     state.original = parts.content;
     state.bom = loaded.bom;
     ui.markdown.value = parts.content;
-    doc.title = heading(parts.content, doc.title);
+    doc.title = documentTitle(parts.frontmatter, parts.content, doc.title);
     doc.wordCount = countWords(parts.content);
     if (doc.chapter) doc.chapter.expanded = true;
     ui.welcome.hidden = true;
@@ -552,7 +554,7 @@
       closed = true;
       state.original = ui.markdown.value;
       state.diskText = diskText;
-      doc.title = heading(ui.markdown.value, doc.title);
+      doc.title = documentTitle(state.frontmatter, ui.markdown.value, doc.title);
       doc.wordCount = countWords(ui.markdown.value);
       if (doc.kind === "about") {
         state.book.title = frontmatterTitle(state.frontmatter) || doc.title;
@@ -673,6 +675,38 @@
     return `${hours.toLocaleString("pt-BR", { maximumSignificantDigits: 3 })} ${hours === 1 ? "hora" : "horas"} de leitura`;
   }
 
+  // Only video players from known hosts may be embedded; any other iframe is removed.
+  const EMBED_HOSTS = {
+    "player.vimeo.com": /^\/video\/\d+$/,
+    "www.youtube.com": /^\/embed\/[\w-]+$/,
+    "www.youtube-nocookie.com": /^\/embed\/[\w-]+$/,
+  };
+
+  function restrictEmbed(frame) {
+    let url;
+    try {
+      url = new URL(frame.getAttribute("src") || "");
+    } catch {
+      frame.remove();
+      return;
+    }
+    if (url.protocol !== "https:" || !EMBED_HOSTS[url.hostname]?.test(url.pathname)) {
+      frame.remove();
+      return;
+    }
+    for (const attribute of [...frame.attributes]) {
+      if (!["src", "id", "title", "allow", "allowfullscreen", "frameborder", "width", "height"].includes(attribute.name)) {
+        frame.removeAttribute(attribute.name);
+      }
+    }
+    const allowed = ["autoplay", "fullscreen", "picture-in-picture", "encrypted-media"];
+    const allow = (frame.getAttribute("allow") || "").split(";").map((item) => item.trim()).filter((item) => allowed.includes(item));
+    frame.setAttribute("allow", allow.join("; "));
+    frame.setAttribute("sandbox", "allow-scripts allow-same-origin allow-presentation allow-popups");
+    frame.setAttribute("loading", "lazy");
+    frame.classList.add("embed");
+  }
+
   function renderPreview() {
     if (!state.current) return;
     const version = ++state.renderVersion;
@@ -683,10 +717,13 @@
       const html = marked.parse(ui.markdown.value, { gfm: true, breaks: false, async: false });
       const clean = DOMPurify.sanitize(html, {
         USE_PROFILES: { html: true },
-        FORBID_TAGS: ["style", "form", "iframe", "object", "embed", "video", "audio", "source"],
+        ADD_TAGS: ["iframe"],
+        ADD_ATTR: ["allow", "allowfullscreen", "frameborder"],
+        FORBID_TAGS: ["style", "form", "object", "embed", "video", "audio", "source"],
         FORBID_ATTR: ["style", "srcset", "autofocus"],
         RETURN_DOM_FRAGMENT: true,
       });
+      clean.querySelectorAll("iframe").forEach(restrictEmbed);
       // Remove image sources before insertion: even sanitized remote URLs can issue network requests.
       const images = [...clean.querySelectorAll("img")].map((image) => {
         const src = image.getAttribute("src") || "";
@@ -800,7 +837,27 @@
     let replacement;
     let offset = 0;
     let length;
-    if (formats[kind]) {
+    if (kind === "video") {
+      const answer = window.prompt("Informe o ID do vídeo no Vimeo:");
+      if (answer === null) return;
+      // Accepts the bare ID or a full Vimeo URL, keeping only the numeric ID.
+      const id = answer.trim().match(/(\d+)\/?(?:[?#].*)?$/)?.[1];
+      if (!id) {
+        notify("ID de vídeo do Vimeo inválido. Use apenas números, como 1248015410.", true);
+        return;
+      }
+      const before = start > 0 && editor.value[start - 1] !== "\n" ? eol + eol : start > 1 && editor.value[start - 2] !== "\n" ? eol : "";
+      replacement = before + [
+        '<iframe id="vimeoPlayer"',
+        `        src="https://player.vimeo.com/video/${id}?colors=131219,FFFFFF,FFFFFF,000000"`,
+        '        frameborder="0"',
+        '        allow="autoplay; fullscreen; picture-in-picture"',
+        "        allowfullscreen>",
+        "</iframe>",
+      ].join(eol) + eol + eol;
+      offset = replacement.length;
+      length = 0;
+    } else if (formats[kind]) {
       const [before, after, placeholder] = formats[kind];
       const text = selected || placeholder;
       replacement = before + text + after;

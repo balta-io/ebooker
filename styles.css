@@ -115,6 +115,7 @@ kbd { font-family: inherit; font-size: 9px; font-weight: 400; padding: 3px 4px; 
 .format-tools button:hover:not(:disabled) { background: #f1effb; }
 .format-tools button span { font-size: 9px; }
 .format-tools button[data-format="code"] { font: 11px Consolas, monospace; }
+.format-tools button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; vertical-align: middle; }
 .toolbar-divider { height: 16px; width: 1px; background: #dfe4d5; margin: 0 8px; }
 .sync-label { font-size: 10px; color: #858e7c; display: flex; gap: 6px; align-items: center; cursor: pointer; white-space: nowrap; }
 input[type="checkbox"] { accent-color: var(--accent); width: 12px; height: 12px; }
@@ -151,6 +152,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 12px; height: 12px;
 .markdown-body th { background: #f4f2fa; text-align: left; }
 .markdown-body img { max-width: 100%; height: auto; border-radius: 4px; }
 .markdown-body img[role="button"] { cursor: pointer; }
+.markdown-body iframe.embed { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; border: 0; border-radius: 4px; margin: 1em 0; background: #000; }
 .markdown-body hr { border: 0; border-top: 1px solid var(--line); margin: 26px 0; }
 .editor-footer { display: flex; justify-content: space-between; padding: 13px 26px; border-top: 1px solid var(--line); font-size: 9px; color: #929a89; background: #f8f9f3; gap: 12px; }
 .footer-separator { color: #c5cbbd; margin: 0 9px; }

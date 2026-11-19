@@ -145,10 +145,54 @@ test("mostra Laboratório e Quiz para aulas hands_on e quiz no menu lateral", as
       "Laboratório", "Quiz", "Aula regular",
     ]);
     await page.locator(".chapter-children .tree-button").first().click();
-    await expect(page.locator("#document-title")).toHaveText("Conteúdo do laboratório");
+    await expect(page.locator("#document-title")).toHaveText("Projeto completo");
     await expect(page.locator(".tree-button.active .tree-label")).toHaveText("Laboratório");
     await page.locator("#search").fill("quiz");
     await expect(page.locator(".chapter-children .tree-label")).toHaveText(["Quiz"]);
+  });
+});
+
+test("usa o título do frontmatter da aula no menu lateral quando o conteúdo começa com outro cabeçalho", async () => {
+  await withEditor({
+    "index.md": "# Livro de teste",
+    "01/index.md": "# Capítulo 1",
+    "01/01/index.md": "---\ntitle: O que é IA\n---\n## FAQ\nTexto.",
+    "01/02/index.md": "## FAQ\nSem frontmatter.",
+  }, async (page) => {
+    await open(page);
+    await page.locator(".chapter-toggle").first().click();
+    assert.deepEqual(await page.locator(".chapter-children .tree-label").allTextContents(), [
+      "O que é IA", "FAQ",
+    ]);
+    await page.locator(".chapter-children .tree-button").first().click();
+    await expect(page.locator("#document-title")).toHaveText("O que é IA");
+    await page.locator(".chapter-children .tree-button").nth(1).click();
+    await expect(page.locator("#document-title")).toHaveText("FAQ");
+  });
+});
+
+test("prévia mantém iframes de vídeo do Vimeo e YouTube e remove os demais", async () => {
+  await withEditor(fixture, async (page) => {
+    await page.route(/vimeo\.com|youtube/, (route) => route.abort());
+    await open(page);
+    await page.locator(".chapter-row .tree-button").first().click();
+    await page.locator(".session-card").first().click();
+    await page.locator("#markdown").fill([
+      '<iframe id="vimeoPlayer" src="https://player.vimeo.com/video/1248015410?colors=131219" frameborder="0" allow="autoplay; fullscreen; camera" allowfullscreen onload="window.injected=1"></iframe>',
+      "",
+      '<iframe src="https://www.youtube.com/embed/abc_123"></iframe>',
+      "",
+      '<iframe src="https://example.com/video/1"></iframe>',
+      '<iframe src="http://player.vimeo.com/video/1"></iframe>',
+      '<iframe src="https://player.vimeo.com/../evil"></iframe>',
+    ].join("\n"));
+    await expect(page.locator("#preview iframe")).toHaveCount(2);
+    const vimeo = page.locator("#preview iframe").first();
+    await expect(vimeo).toHaveAttribute("src", /^https:\/\/player\.vimeo\.com\/video\/1248015410/);
+    await expect(vimeo).toHaveAttribute("allow", "autoplay; fullscreen");
+    await expect(vimeo).toHaveAttribute("sandbox", /allow-scripts/);
+    assert.equal(await vimeo.getAttribute("onload"), null);
+    assert.equal(await page.evaluate(() => window.injected), undefined);
   });
 });
 
@@ -576,6 +620,34 @@ test("formatação mantém seleção e pode ser desfeita", async () => {
     await page.keyboard.press("Control+z");
     await expect(page.locator("#markdown")).toHaveValue(fixture["index.md"]);
     await expect(page.locator("#save")).toBeDisabled();
+  });
+});
+
+test("botão de vídeo pede o ID do Vimeo e insere o player", async () => {
+  await withEditor(fixture, async (page) => {
+    await open(page);
+    await page.route(/vimeo\.com/, (route) => route.abort());
+    await page.evaluate(() => {
+      const editor = document.getElementById("markdown");
+      editor.setSelectionRange(editor.value.length, editor.value.length);
+    });
+    page.once("dialog", (dialog) => dialog.accept("1248015410"));
+    await page.getByRole("button", { name: "Inserir vídeo do Vimeo" }).click();
+    const value = await page.locator("#markdown").inputValue();
+    assert.ok(value.includes([
+      '<iframe id="vimeoPlayer"',
+      '        src="https://player.vimeo.com/video/1248015410?colors=131219,FFFFFF,FFFFFF,000000"',
+      '        frameborder="0"',
+      '        allow="autoplay; fullscreen; picture-in-picture"',
+      "        allowfullscreen>",
+      "</iframe>",
+    ].join("\n")));
+    await expect(page.locator("#preview iframe")).toHaveAttribute("src", /player\.vimeo\.com\/video\/1248015410/);
+
+    page.once("dialog", (dialog) => dialog.accept("abc"));
+    await page.getByRole("button", { name: "Inserir vídeo do Vimeo" }).click();
+    await expect(page.locator("#notice")).toContainText("ID de vídeo do Vimeo inválido");
+    await expect(page.locator("#markdown")).toHaveValue(value);
   });
 });
 
