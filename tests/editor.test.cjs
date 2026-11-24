@@ -131,6 +131,23 @@ test("usa o título do frontmatter do index.md do capítulo na lateral", async (
   });
 });
 
+test("capítulo sem index.md usa o título da primeira aula e mostra duração e quantidade de aulas", async () => {
+  await withEditor({
+    "index.md": "# Livro",
+    "01/01/index.md": "---\ntitle: \"The Math Computers Understand\"\n---\n\n# The Math Computers Understand\n\nTexto.",
+    "01/02/index.md": "---\ntitle: \"Continuous and Discrete\"\n---\n\nTexto.",
+    "01/03/index.md": "---\ntitle: \"Quiz: The Math Computers Understand\"\nlecture_type: quiz\n---\n\nTexto.",
+    "02/01/index.md": "# Única aula",
+  }, async (page) => {
+    await open(page);
+    assert.deepEqual(await page.locator(".chapter-row .tree-label").allTextContents(), [
+      "The Math Computers Understand", "Única aula",
+    ]);
+    assert.deepEqual(await page.locator(".chapter-row .tree-lesson-count").allTextContents(), ["3 aulas", "1 aula"]);
+    await expect(page.locator(".chapter-row .tree-meta").first()).toHaveText("menos de 1 minuto de leitura · 3 aulas");
+  });
+});
+
 test("mostra Laboratório e Quiz para aulas hands_on e quiz no menu lateral", async () => {
   await withEditor({
     "index.md": "# Livro de teste",
@@ -489,7 +506,7 @@ test("busca sessões por título e links internos abrem o index.md correto", asy
 test("renderiza GFM, remove HTML ativo e resolve imagens absolutas localmente", async () => {
   await withEditor({
     ...fixture,
-    "_images/test.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="green"/></svg>',
+    "_images/images/test.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="green"/></svg>',
   }, async (page) => {
     await open(page);
     const requests = [];

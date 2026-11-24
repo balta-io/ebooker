@@ -74,7 +74,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .tree-button.active { background: #eeeaff; color: #4526a4; font-weight: 600; }
 .tree-button .tree-label { overflow-wrap: anywhere; }
 .tree-details { min-width: 0; }
-.tree-reading-time { display: block; font-size: 10px; font-weight: 400; color: var(--muted); margin-top: 3px; }
+.tree-meta { display: block; font-size: 10px; font-weight: 400; color: var(--muted); margin-top: 3px; }
 .reading-time { color: var(--muted); font-size: 11px; margin: 0 0 7px; }
 .tree-symbol { color: #8b977e; font-size: 12px; min-width: 15px; }
 .tree-chapter { margin-top: 8px; }

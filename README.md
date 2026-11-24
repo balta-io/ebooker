@@ -60,7 +60,7 @@ Meu ebook/
 
 ## Prévia e privacidade
 
-Nenhum ebook é enviado para um servidor. Marked.js e DOMPurify são carregados localmente. HTML ativo é removido da prévia. Imagens com URLs HTTP/HTTPS são carregadas localmente da pasta `_images` na raiz do ebook, usando o nome do arquivo da URL; a URL original permanece inalterada no editor. Imagens sem URL absoluta seguem a resolução local descrita abaixo.
+Nenhum ebook é enviado para um servidor. Marked.js e DOMPurify são carregados localmente. HTML ativo é removido da prévia. Imagens com URLs HTTP/HTTPS são carregadas localmente da pasta `_images/images` na raiz do ebook (com `_images` como alternativa), usando o nome do arquivo da URL; a URL original permanece inalterada no editor. Imagens sem URL absoluta seguem a resolução local descrita abaixo.
 
 Imagens relativas dentro da pasta do ebook são resolvidas pela API de arquivos. Caminhos relativos são calculados a partir do Markdown selecionado; caminhos começando com `/` partem da raiz do ebook. Clique em uma imagem na prévia para abri-la em alta resolução; use **Fechar**, **Esc** ou clique fora da imagem para voltar. Alterações no Markdown atualizam a prévia e as imagens. Links para outros `index.md` disponíveis e âncoras de títulos funcionam na prévia. Links externos HTTP/HTTPS e `mailto:` só abrem quando clicados.
 

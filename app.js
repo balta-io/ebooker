@@ -275,9 +275,8 @@
         chapter.sessions.push(session);
       }
       if (!chapter.document && !chapter.sessions.length) continue;
-      if (!chapter.document && /^cap[ií]tulo\b/i.test(chapter.sessions[0].title)) {
-        chapter.title = chapter.sessions[0].title;
-      }
+      // Without its own index.md, the chapter takes the title of its opening (first) lesson.
+      if (!chapter.document) chapter.title = chapter.sessions[0].title;
       book.chapters.push(chapter);
       if (chapter.document) book.documents.set(chapter.document.path, chapter.document);
       chapter.sessions.forEach((session) => book.documents.set(session.path, session));
@@ -285,7 +284,7 @@
     return book;
   }
 
-  function treeButton(label, symbol, selected, action, words) {
+  function treeButton(label, symbol, selected, action, words, lessons = null) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `tree-button${selected ? " active" : ""}`;
@@ -299,10 +298,19 @@
     text.textContent = label;
     const details = document.createElement("span");
     details.className = "tree-details";
-    const duration = document.createElement("small");
+    const meta = document.createElement("small");
+    meta.className = "tree-meta";
+    const duration = document.createElement("span");
     duration.className = "tree-reading-time";
     duration.textContent = formatReadingTime(words);
-    details.append(text, duration);
+    meta.append(duration);
+    if (lessons !== null) {
+      const count = document.createElement("span");
+      count.className = "tree-lesson-count";
+      count.textContent = `${lessons.toLocaleString("pt-BR")} ${lessons === 1 ? "aula" : "aulas"}`;
+      meta.append(" · ", count);
+    }
+    details.append(text, meta);
     button.append(icon, details);
     button.addEventListener("click", action);
     return button;
@@ -324,7 +332,7 @@
       group.className = "tree-chapter";
       const row = document.createElement("div");
       row.className = "chapter-row";
-      row.append(treeButton(chapter.title, chapter.name, state.selected === chapter || state.selected === chapter.document, () => navigate(chapter.document || chapter), chapterWords(chapter)));
+      row.append(treeButton(chapter.title, chapter.name, state.selected === chapter || state.selected === chapter.document, () => navigate(chapter.document || chapter), chapterWords(chapter), chapter.sessions.length));
       if (chapter.sessions.length) {
         const toggle = document.createElement("button");
         toggle.type = "button";
@@ -626,12 +634,25 @@
       if (!filename || filename === "." || filename === ".." || /[\/\\\0]/.test(filename)) {
         throw new Error("A URL da imagem não contém um nome de arquivo válido.");
       }
-      return ["_images", filename];
+      return [["_images", "images", filename], ["_images", filename]];
     }
     if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(src)) {
       throw new Error("Imagens externas não são carregadas automaticamente. Use uma imagem dentro da pasta do ebook.");
     }
-    return relativePath(src, sourceParts);
+    return [relativePath(src, sourceParts)];
+  }
+
+  async function imageFile(candidates, book) {
+    let lastError;
+    for (const parts of candidates) {
+      try {
+        return await resourceFile(parts, book);
+      } catch (error) {
+        if (error?.name !== "NotFoundError" && error?.name !== "TypeMismatchError") throw error;
+        lastError = error;
+      }
+    }
+    throw lastError;
   }
 
   function addHeadingIDs() {
@@ -757,7 +778,7 @@
   async function loadImage(image, src, source, book, version) {
     try {
       if (!src) throw new Error("Caminho de imagem vazio.");
-      const file = await resourceFile(imagePath(src, source.parts), book);
+      const file = await imageFile(imagePath(src, source.parts), book);
       if (version !== state.renderVersion) return;
       const url = URL.createObjectURL(file);
       state.imageURLs.push(url);
